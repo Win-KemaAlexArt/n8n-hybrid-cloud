@@ -1,26 +1,33 @@
 #!/bin/bash
 
-echo "🚀 Starting N8N Hybrid Cloud Setup..."
+# Enable strict error checking and command echoing for debugging
+set -ex
 
-# Set environment variables
+echo "🚀 DEBUG MODE: Starting N8N Hybrid Cloud Setup..."
+echo "---"
+echo "STEP 1: Setting environment variables..."
+
 export N8N_HOST=0.0.0.0
 export N8N_PORT=5678
 export N8N_PROTOCOL=https
-export WEBHOOK_URL=https://$(hostname)-5678.githubpreview.dev
-export N8N_RUNNERS_ENABLED=true # Recommended by n8n to avoid future issues
+export WEBHOOK_URL="https://$(hostname)-5678.githubpreview.dev"
+export N8N_RUNNERS_ENABLED=true
 
-echo "🌐 N8N will be available at: $WEBHOOK_URL"
+echo "-> WEBHOOK_URL set to: $WEBHOOK_URL"
+echo "---"
+echo "STEP 2: Launching keep-alive script..."
 
-# Start keep-alive script in the background and log its output
-echo "🚀 Starting keep-alive process..."
 chmod +x keep-alive.sh
+# Launch in background, redirecting stdout and stderr to a log file
 ./keep-alive.sh > keep-alive.log 2>&1 &
-
-# Get the Process ID (PID) of the keep-alive script
 KEEPALIVE_PID=$!
-echo "✅ Keep-alive script started in the background with PID: $KEEPALIVE_PID"
-echo "   You can check its logs with: tail -f keep-alive.log"
+
+echo "-> Keep-alive script launched with PID: $KEEPALIVE_PID"
+echo "---"
+echo "STEP 3: Starting n8n server..."
 
 # Start n8n in the foreground
-echo "🎯 Starting n8n server..."
 n8n start
+
+echo "---"
+echo "🏁 Script finished (or n8n process stopped)."
