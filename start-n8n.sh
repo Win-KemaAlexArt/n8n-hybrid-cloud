@@ -15,6 +15,10 @@ export N8N_RUNNERS_ENABLED=true # Recommended by n8n to avoid future issues
 
 echo "🌐 N8N will be available at: $WEBHOOK_URL"
 
-# Start n8n
+# Start keep-alive script in the background
+chmod +x keep-alive.sh
+./keep-alive.sh & # The '&' runs it in the background
+
+# Start n8n in the foreground
 echo "🎯 Starting n8n server..."
 n8n start
