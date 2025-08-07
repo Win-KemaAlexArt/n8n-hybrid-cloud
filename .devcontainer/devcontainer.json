@@ -1,6 +1,6 @@
 {
   "name": "N8N Hybrid Cloud",
-  "image": "node:18-bullseye",
+  "image": "node:20-bullseye",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": true,
@@ -19,7 +19,7 @@
       "onAutoForward": "openBrowser"
     }
   },
-  "postCreateCommand": "npm install -g n8n && echo 'N8N installed successfully'",
+  "postCreateCommand": "sudo npm install -g n8n && echo 'N8N installed successfully'",
   "customizations": {
     "vscode": {
       "extensions": [

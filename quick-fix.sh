@@ -1,10 +1,14 @@
 #!/bin/bash
 
-echo "🚀 Starting N8N Hybrid Cloud Setup..."
+echo "🔧 Quick Fix for Current Codespace..."
 
-# Install n8n globally with sudo
-echo "📦 Installing n8n..."
+# Install n8n with sudo
+echo "📦 Installing n8n with proper permissions..."
 sudo npm install -g n8n
+
+# Verify installation
+echo "✅ Verifying n8n installation..."
+n8n --version
 
 # Set environment variables
 export N8N_HOST=0.0.0.0
