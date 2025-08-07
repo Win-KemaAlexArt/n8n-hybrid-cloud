@@ -1,31 +1,31 @@
 {
   "name": "N8N Hybrid Cloud",
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "image": "node:18-bullseye",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "18"
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true
     }
   },
-  "forwardPorts": [5678, 80, 443],
+  "forwardPorts": [5678, 3000],
   "portsAttributes": {
     "5678": {
       "label": "N8N Web Interface",
       "onAutoForward": "openBrowser"
     },
-    "80": {
-      "label": "HTTP",
+    "3000": {
+      "label": "Development Server",
       "onAutoForward": "openBrowser"
     }
   },
-  "postCreateCommand": "npm install && docker-compose up -d",
+  "postCreateCommand": "npm install -g n8n && echo 'N8N installed successfully'",
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-vscode.vscode-json",
-        "ms-vscode.vscode-docker"
+        "ms-vscode.vscode-json"
       ]
     }
   },
-  "remoteUser": "codespace"
+  "remoteUser": "node"
 }
