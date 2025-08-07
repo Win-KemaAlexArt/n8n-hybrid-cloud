@@ -2,10 +2,6 @@
 
 echo "🚀 Starting N8N Hybrid Cloud Setup..."
 
-# Install n8n globally with sudo
-echo "📦 Installing n8n..."
-sudo npm install -g n8n
-
 # Set environment variables
 export N8N_HOST=0.0.0.0
 export N8N_PORT=5678
