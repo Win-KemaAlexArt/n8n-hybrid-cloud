@@ -1,0 +1,10 @@
+{
+  "project_name": "n8n-analytics",
+  "project_url": "https://nacpsvszdyabyuednbsg.supabase.co",
+  "anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hY3BzdnN6ZHlhYnl1ZWRuYnNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ1MjAwNDMsImV4cCI6MjA3MDA5NjA0M30.-lo38TwmxnsoEzLSywM7Sz5kzy2vEfJU1Jc86AphvLo",
+  "service_role_key": "ПОЛУЧИ_ИЗ_SUPABASE_DASHBOARD",
+  "database_password": "N8nAnalytics2025!",
+  "region": "West Europe (London)",
+  "created_at": "2025-08-07T02:34:00Z",
+  "status": "mcp_configured"
+}

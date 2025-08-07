@@ -1,0 +1,89 @@
+{
+  "name": "n8n-hybrid-ecosystem",
+  "version": "1.0.0",
+  "description": "Полностью автоматизированная гибридная экосистема n8n с AWS, Vercel и Supabase",
+  "main": "index.js",
+  "scripts": {
+    "start": "docker-compose up -d",
+    "stop": "docker-compose down",
+    "restart": "docker-compose restart",
+    "logs": "docker-compose logs -f",
+    "build": "docker-compose build",
+    "dev": "docker-compose -f docker-compose.yml -f docker-compose.dev.yml up",
+    "deploy:aws": "cd aws-infrastructure && chmod +x deploy-aws.sh && ./deploy-aws.sh",
+    "deploy:vercel": "cd n8n-webhook-gateway && vercel --prod",
+    "setup:supabase": "cd supabase-integration && node setup-supabase.js",
+    "test:mcp": "node automation-scripts/test-mcp-servers.js",
+    "backup:db": "docker-compose exec postgres pg_dump -U n8n_user n8n > backups/db-$(date +%Y%m%d-%H%M%S).sql",
+    "restore:db": "docker-compose exec -T postgres psql -U n8n_user n8n < backups/latest.sql",
+    "health:check": "curl -f http://localhost/health || exit 1",
+    "ssl:generate": "openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout nginx/ssl/privkey.pem -out nginx/ssl/fullchain.pem",
+    "clean": "docker-compose down -v && docker system prune -f",
+    "update": "docker-compose pull && docker-compose up -d"
+  },
+  "keywords": [
+    "n8n",
+    "automation",
+    "workflows",
+    "aws",
+    "vercel",
+    "supabase",
+    "hybrid-cloud",
+    "docker",
+    "webhooks"
+  ],
+  "author": "Win-KemaAlexArt",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Win-KemaAlexArt/n8n-webhook-gateway.git"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "morgan": "^1.10.0",
+    "compression": "^1.7.4",
+    "rate-limiter-flexible": "^5.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.3",
+    "@types/node": "^22.5.4",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "config": {
+    "automation_level": "1000000⁹*⁹*⁹↑/000.1",
+    "cloud_providers": {
+      "aws": {
+        "region": "us-east-1",
+        "instance_type": "t2.micro",
+        "database": "RDS PostgreSQL"
+      },
+      "vercel": {
+        "plan": "Hobby",
+        "functions": "Edge Functions",
+        "deployment": "Automatic"
+      },
+      "supabase": {
+        "plan": "Free",
+        "database": "PostgreSQL",
+        "auth": "Built-in"
+      }
+    }
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/sponsors/Win-KemaAlexArt"
+  }
+}

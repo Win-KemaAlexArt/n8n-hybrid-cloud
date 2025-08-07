@@ -1,0 +1,15 @@
+{
+  "name": "n8n-webhook-gateway",
+  "version": "1.0.0",
+  "description": "Vercel Edge Functions for n8n webhook processing",
+  "main": "api/webhook/telegram.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step required'",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@vercel/node": "^3.0.0"
+  }
+}

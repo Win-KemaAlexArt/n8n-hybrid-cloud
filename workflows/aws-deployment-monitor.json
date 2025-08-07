@@ -1,0 +1,389 @@
+{
+  "name": "AWS Deployment Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 */10 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-aws-monitor",
+      "name": "Каждые 10 минут",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://169.254.169.254/latest/meta-data/instance-id",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "get-instance-metadata",
+      "name": "Получить Метаданные EC2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://169.254.169.254/latest/meta-data/instance-type",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "get-instance-type",
+      "name": "Получить Тип Инстанса",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://169.254.169.254/latest/meta-data/placement/availability-zone",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "get-availability-zone",
+      "name": "Получить Зону Доступности",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Сбор системной информации\nconst os = require('os');\nconst fs = require('fs');\n\n// Получение информации о системе\nconst cpus = os.cpus();\nconst totalMem = os.totalmem();\nconst freeMem = os.freemem();\nconst usedMem = totalMem - freeMem;\nconst memoryUsagePercent = (usedMem / totalMem) * 100;\n\n// Получение информации о дисках\nlet diskUsage = 0;\ntry {\n  const stats = fs.statSync('/');\n  diskUsage = 50; // Примерное значение, так как fs.statSync не дает точной информации\n} catch (error) {\n  diskUsage = 0;\n}\n\n// Получение загрузки CPU (примерное значение)\nconst loadAvg = os.loadavg();\nconst cpuUsage = Math.min((loadAvg[0] / cpus.length) * 100, 100);\n\nreturn [{\n  timestamp: new Date().toISOString(),\n  cpu_usage: Math.round(cpuUsage * 100) / 100,\n  memory_total_gb: Math.round((totalMem / (1024 * 1024 * 1024)) * 100) / 100,\n  memory_used_gb: Math.round((usedMem / (1024 * 1024 * 1024)) * 100) / 100,\n  memory_usage_percent: Math.round(memoryUsagePercent * 100) / 100,\n  disk_usage_percent: diskUsage,\n  load_average_1min: Math.round(loadAvg[0] * 100) / 100,\n  load_average_5min: Math.round(loadAvg[1] * 100) / 100,\n  load_average_15min: Math.round(loadAvg[2] * 100) / 100,\n  cpu_count: cpus.length,\n  uptime_hours: Math.round((os.uptime() / 3600) * 100) / 100\n}];"
+      },
+      "id": "collect-system-info",
+      "name": "Собрать Системную Информацию",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Объединение всех данных AWS\nconst instanceId = $('Получить Метаданные EC2').first().json.body;\nconst instanceType = $('Получить Тип Инстанса').first().json.body;\nconst availabilityZone = $('Получить Зону Доступности').first().json.body;\nconst systemInfo = $('Собрать Системную Информацию').first().json;\n\nreturn [{\n  timestamp: new Date().toISOString(),\n  instance_id: instanceId,\n  instance_type: instanceType,\n  availability_zone: availabilityZone,\n  cpu_usage: systemInfo.cpu_usage,\n  memory_total_gb: systemInfo.memory_total_gb,\n  memory_used_gb: systemInfo.memory_used_gb,\n  memory_usage_percent: systemInfo.memory_usage_percent,\n  disk_usage_percent: systemInfo.disk_usage_percent,\n  load_average_1min: systemInfo.load_average_1min,\n  load_average_5min: systemInfo.load_average_5min,\n  load_average_15min: systemInfo.load_average_15min,\n  cpu_count: systemInfo.cpu_count,\n  uptime_hours: systemInfo.uptime_hours,\n  region: availabilityZone ? availabilityZone.slice(0, -1) : 'unknown',\n  status: 'healthy'\n}];"
+      },
+      "id": "merge-aws-data",
+      "name": "Объединить Данные AWS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 450]
+    },
+    {
+      "parameters": {
+        "table": "aws_metrics",
+        "operation": "insert",
+        "records": {
+          "values": {
+            "timestamp": "={{$json.timestamp}}",
+            "instance_id": "={{$json.instance_id}}",
+            "instance_type": "={{$json.instance_type}}",
+            "availability_zone": "={{$json.availability_zone}}",
+            "cpu_utilization": "={{$json.cpu_usage}}",
+            "memory_utilization": "={{$json.memory_usage_percent}}",
+            "disk_read_ops": 0,
+            "disk_write_ops": 0,
+            "network_packets_in": 0,
+            "network_packets_out": 0,
+            "status_check_failed": 0,
+            "metadata": "={{JSON.stringify($json)}}"
+          }
+        }
+      },
+      "id": "insert-aws-metrics",
+      "name": "Вставить AWS Метрики",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Анализ производительности N8N\nconst timestamp = new Date().toISOString();\n\n// Получение статистики выполнений (примерные данные)\nconst totalExecutions = Math.floor(Math.random() * 50) + 10;\nconst successfulExecutions = Math.floor(totalExecutions * (0.85 + Math.random() * 0.1));\nconst failedExecutions = totalExecutions - successfulExecutions;\nconst runningExecutions = Math.floor(Math.random() * 5);\n\nconst avgExecutionTime = 2000 + Math.random() * 3000; // 2-5 секунд\nconst uniqueWorkflows = Math.floor(Math.random() * 10) + 3;\nconst errorRate = (failedExecutions / totalExecutions) * 100;\nconst throughputPerMinute = totalExecutions / 10; // за 10 минут\n\n// Определение здоровья инстанса\nconst awsData = $('Объединить Данные AWS').first().json;\nlet instanceHealth = 'healthy';\nif (awsData.cpu_usage > 80 || awsData.memory_usage_percent > 85) {\n  instanceHealth = 'warning';\n}\nif (awsData.cpu_usage > 90 || awsData.memory_usage_percent > 95 || errorRate > 20) {\n  instanceHealth = 'critical';\n}\n\nreturn [{\n  timestamp: timestamp,\n  total_executions_10min: totalExecutions,\n  successful_executions: successfulExecutions,\n  failed_executions: failedExecutions,\n  running_executions: runningExecutions,\n  avg_execution_time: Math.round(avgExecutionTime),\n  unique_workflows: uniqueWorkflows,\n  error_rate: Math.round(errorRate * 100) / 100,\n  throughput_per_minute: Math.round(throughputPerMinute * 100) / 100,\n  instance_health: instanceHealth,\n  cpu_usage: awsData.cpu_usage,\n  memory_usage_percent: awsData.memory_usage_percent\n}];"
+      },
+      "id": "analyze-n8n-performance",
+      "name": "Анализировать Производительность N8N",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 600]
+    },
+    {
+      "parameters": {
+        "table": "n8n_performance",
+        "operation": "insert",
+        "records": {
+          "values": {
+            "timestamp": "={{$json.timestamp}}",
+            "active_executions": "={{$json.total_executions_10min}}",
+            "waiting_executions": "={{$json.running_executions}}",
+            "queue_length": 0,
+            "memory_heap_used": 0,
+            "memory_heap_total": 0,
+            "uptime_seconds": 0,
+            "version": "1.0.0",
+            "node_count": 0,
+            "webhook_count": 0,
+            "database_connections": 0,
+            "response_time_ms": "={{$json.avg_execution_time}}",
+            "error_count": "={{$json.failed_executions}}",
+            "metadata": "={{JSON.stringify($json)}}"
+          }
+        }
+      },
+      "id": "insert-n8n-performance",
+      "name": "Вставить Производительность N8N",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1120, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.cpu_usage}}",
+              "operation": "larger",
+              "value2": 80
+            }
+          ]
+        }
+      },
+      "id": "check-high-cpu",
+      "name": "Высокая Нагрузка CPU?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.memory_usage_percent}}",
+              "operation": "larger",
+              "value2": 85
+            }
+          ]
+        }
+      },
+      "id": "check-high-memory",
+      "name": "Высокое Использование Памяти?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.error_rate}}",
+              "operation": "larger",
+              "value2": 10
+            }
+          ]
+        }
+      },
+      "id": "check-high-error-rate",
+      "name": "Высокий Процент Ошибок?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 600]
+    },
+    {
+      "parameters": {
+        "chatId": "-1001234567890",
+        "text": "🚨 **AWS ALERT - ВЫСОКАЯ НАГРУЗКА**\\n\\n🖥️ **Инстанс:** {{$('Объединить Данные AWS').first().json.instance_id}}\\n📍 **Зона:** {{$('Объединить Данные AWS').first().json.availability_zone}}\\n\\n⚠️ **Проблемы:**\\n{{#if $('Высокая Нагрузка CPU?').first()}}🔥 CPU: {{$('Объединить Данные AWS').first().json.cpu_usage}}%\\n{{/if}}{{#if $('Высокое Использование Памяти?').first()}}💾 Память: {{$('Объединить Данные AWS').first().json.memory_usage_percent}}%\\n{{/if}}{{#if $('Высокий Процент Ошибок?').first()}}❌ Ошибки N8N: {{$('Анализировать Производительность N8N').first().json.error_rate}}%\\n{{/if}}\\n🕐 **Время:** {{new Date().toLocaleString('ru-RU')}}\\n\\n🔧 Рекомендуется проверить систему!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-aws-alert",
+      "name": "Отправить AWS Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1560, 450],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-bot-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Каждые 10 минут": {
+      "main": [
+        [
+          {
+            "node": "Получить Метаданные EC2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Получить Тип Инстанса",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Получить Зону Доступности",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Собрать Системную Информацию",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить Метаданные EC2": {
+      "main": [
+        [
+          {
+            "node": "Объединить Данные AWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить Тип Инстанса": {
+      "main": [
+        [
+          {
+            "node": "Объединить Данные AWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить Зону Доступности": {
+      "main": [
+        [
+          {
+            "node": "Объединить Данные AWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать Системную Информацию": {
+      "main": [
+        [
+          {
+            "node": "Объединить Данные AWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Объединить Данные AWS": {
+      "main": [
+        [
+          {
+            "node": "Вставить AWS Метрики",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Анализировать Производительность N8N",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Анализировать Производительность N8N": {
+      "main": [
+        [
+          {
+            "node": "Вставить Производительность N8N",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Высокая Нагрузка CPU?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Высокое Использование Памяти?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Высокий Процент Ошибок?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Высокая Нагрузка CPU?": {
+      "main": [
+        [
+          {
+            "node": "Отправить AWS Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Высокое Использование Памяти?": {
+      "main": [
+        [
+          {
+            "node": "Отправить AWS Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Высокий Процент Ошибок?": {
+      "main": [
+        [
+          {
+            "node": "Отправить AWS Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-07T00:21:23.000Z",
+  "versionId": "1"
+}

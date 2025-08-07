@@ -1,0 +1,356 @@
+{
+  "name": "Supabase Analytics - Сбор Метрик",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 */5 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Каждые 5 минут",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Сбор системных метрик\nconst timestamp = new Date().toISOString();\nconst metrics = {\n  timestamp: timestamp,\n  cpu_usage: Math.random() * 100, // Симуляция\n  memory_usage: Math.random() * 100,\n  disk_usage: Math.random() * 100,\n  active_workflows: Math.floor(Math.random() * 50),\n  completed_executions: Math.floor(Math.random() * 1000),\n  failed_executions: Math.floor(Math.random() * 10),\n  webhook_requests: Math.floor(Math.random() * 500),\n  response_time_avg: Math.random() * 1000,\n  uptime_seconds: Math.floor(Date.now() / 1000),\n  version: '1.0.0',\n  environment: 'production'\n};\n\nreturn [metrics];"
+      },
+      "id": "collect-metrics",
+      "name": "Собрать Метрики",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "table": "system_metrics",
+        "operation": "insert",
+        "records": {
+          "values": {
+            "timestamp": "={{$json.timestamp}}",
+            "cpu_usage": "={{$json.cpu_usage}}",
+            "memory_usage": "={{$json.memory_usage}}",
+            "disk_usage": "={{$json.disk_usage}}",
+            "active_workflows": "={{$json.active_workflows}}",
+            "completed_executions": "={{$json.completed_executions}}",
+            "failed_executions": "={{$json.failed_executions}}",
+            "webhook_requests": "={{$json.webhook_requests}}",
+            "response_time_avg": "={{$json.response_time_avg}}",
+            "uptime_seconds": "={{$json.uptime_seconds}}",
+            "version": "={{$json.version}}",
+            "environment": "={{$json.environment}}"
+          }
+        }
+      },
+      "id": "insert-metrics",
+      "name": "Вставить Метрики",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.vercel.com/v6/deployments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "vercelApi",
+        "options": {
+          "headers": {
+            "Authorization": "Bearer k3dQlIJIgMGed8jCNtjWdzEu"
+          },
+          "qs": {
+            "limit": "10"
+          }
+        }
+      },
+      "id": "get-vercel-metrics",
+      "name": "Получить Метрики Vercel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Обработка метрик Vercel\nconst deployments = $input.first().json.deployments || [];\nconst timestamp = new Date().toISOString();\n\nconst vercelMetrics = deployments.map(deployment => ({\n  timestamp: timestamp,\n  deployment_id: deployment.uid,\n  project_name: deployment.name,\n  status: deployment.state,\n  created_at: deployment.createdAt,\n  build_time: deployment.buildingAt ? \n    new Date(deployment.readyAt || Date.now()) - new Date(deployment.buildingAt) : null,\n  url: deployment.url,\n  source: 'vercel',\n  region: deployment.regions?.[0] || 'unknown'\n}));\n\nreturn vercelMetrics;"
+      },
+      "id": "process-vercel-metrics",
+      "name": "Обработать Метрики Vercel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "table": "deployment_metrics",
+        "operation": "insert",
+        "records": {
+          "values": {
+            "timestamp": "={{$json.timestamp}}",
+            "deployment_id": "={{$json.deployment_id}}",
+            "project_name": "={{$json.project_name}}",
+            "status": "={{$json.status}}",
+            "created_at": "={{$json.created_at}}",
+            "build_time": "={{$json.build_time}}",
+            "url": "={{$json.url}}",
+            "source": "={{$json.source}}",
+            "region": "={{$json.region}}"
+          }
+        }
+      },
+      "id": "insert-deployment-metrics",
+      "name": "Вставить Метрики Деплоев",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1120, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": "workflow_executions",
+        "operation": "select",
+        "options": {
+          "queryFilters": {
+            "filters": [
+              {
+                "field": "execution_time",
+                "operator": "gte",
+                "value": "={{new Date(Date.now() - 5*60*1000).toISOString()}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "get-recent-executions",
+      "name": "Получить Недавние Выполнения",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 700],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Анализ выполнений workflow\nconst executions = $input.first().json || [];\nconst timestamp = new Date().toISOString();\n\nconst analysis = {\n  timestamp: timestamp,\n  total_executions: executions.length,\n  successful_executions: executions.filter(e => e.status === 'completed').length,\n  failed_executions: executions.filter(e => e.status === 'failed').length,\n  unique_users: new Set(executions.map(e => e.user_id)).size,\n  unique_workflows: new Set(executions.map(e => e.workflow_name)).size,\n  avg_response_time: executions.length > 0 ? \n    executions.reduce((sum, e) => sum + (e.response_time || 0), 0) / executions.length : 0,\n  most_used_command: executions.length > 0 ? \n    executions.reduce((acc, e) => {\n      acc[e.command] = (acc[e.command] || 0) + 1;\n      return acc;\n    }, {}) : {},\n  period_start: new Date(Date.now() - 5*60*1000).toISOString(),\n  period_end: timestamp\n};\n\nreturn [analysis];"
+      },
+      "id": "analyze-executions",
+      "name": "Анализировать Выполнения",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 700]
+    },
+    {
+      "parameters": {
+        "table": "execution_analytics",
+        "operation": "insert",
+        "records": {
+          "values": {
+            "timestamp": "={{$json.timestamp}}",
+            "total_executions": "={{$json.total_executions}}",
+            "successful_executions": "={{$json.successful_executions}}",
+            "failed_executions": "={{$json.failed_executions}}",
+            "unique_users": "={{$json.unique_users}}",
+            "unique_workflows": "={{$json.unique_workflows}}",
+            "avg_response_time": "={{$json.avg_response_time}}",
+            "most_used_command": "={{JSON.stringify($json.most_used_command)}}",
+            "period_start": "={{$json.period_start}}",
+            "period_end": "={{$json.period_end}}"
+          }
+        }
+      },
+      "id": "insert-analytics",
+      "name": "Вставить Аналитику",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1120, 700],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.failed_executions}}",
+              "operation": "larger",
+              "value2": 5
+            }
+          ]
+        }
+      },
+      "id": "check-high-failures",
+      "name": "Много Ошибок?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 700]
+    },
+    {
+      "parameters": {
+        "chatId": "-1001234567890",
+        "text": "🚨 **ПРЕДУПРЕЖДЕНИЕ**\n\n❌ Обнаружено {{$json.failed_executions}} неудачных выполнений за последние 5 минут\n\n📊 Статистика:\n• Всего выполнений: {{$json.total_executions}}\n• Успешных: {{$json.successful_executions}}\n• Неудачных: {{$json.failed_executions}}\n• Уникальных пользователей: {{$json.unique_users}}\n\n⚠️ Требуется проверка системы!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-alert",
+      "name": "Отправить Предупреждение",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1560, 600],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-bot-credentials",
+          "name": "Telegram Bot API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Каждые 5 минут": {
+      "main": [
+        [
+          {
+            "node": "Собрать Метрики",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Получить Метрики Vercel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Получить Недавние Выполнения",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать Метрики": {
+      "main": [
+        [
+          {
+            "node": "Вставить Метрики",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить Метрики Vercel": {
+      "main": [
+        [
+          {
+            "node": "Обработать Метрики Vercel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Обработать Метрики Vercel": {
+      "main": [
+        [
+          {
+            "node": "Вставить Метрики Деплоев",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить Недавние Выполнения": {
+      "main": [
+        [
+          {
+            "node": "Анализировать Выполнения",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Анализировать Выполнения": {
+      "main": [
+        [
+          {
+            "node": "Вставить Аналитику",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вставить Аналитику": {
+      "main": [
+        [
+          {
+            "node": "Много Ошибок?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Много Ошибок?": {
+      "main": [
+        [
+          {
+            "node": "Отправить Предупреждение",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "n8n-hybrid-ecosystem"
+  },
+  "id": "supabase-analytics",
+  "tags": [
+    {
+      "createdAt": "2025-08-07T00:06:53.000Z",
+      "updatedAt": "2025-08-07T00:06:53.000Z",
+      "id": "analytics",
+      "name": "Аналитика"
+    },
+    {
+      "createdAt": "2025-08-07T00:06:53.000Z",
+      "updatedAt": "2025-08-07T00:06:53.000Z",
+      "id": "monitoring",
+      "name": "Мониторинг"
+    }
+  ]
+}

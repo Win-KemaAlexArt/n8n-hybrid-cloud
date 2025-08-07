@@ -1,0 +1,110 @@
+# N8N Гибридная Экосистема - Docker Compose
+# Для локальной разработки и тестирования
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: n8n-postgres
+    environment:
+      POSTGRES_DB: n8n
+      POSTGRES_USER: n8n_user
+      POSTGRES_PASSWORD: n8n_secure_password
+      POSTGRES_NON_ROOT_USER: n8n_user
+      POSTGRES_NON_ROOT_PASSWORD: n8n_secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./supabase-integration/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n_user -d n8n"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # N8N Workflow Engine
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-main
+    ports:
+      - "5678:5678"
+    environment:
+      # Database Configuration
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n_user
+      DB_POSTGRESDB_PASSWORD: n8n_secure_password
+      
+      # N8N Configuration
+      N8N_BASIC_AUTH_ACTIVE: true
+      N8N_BASIC_AUTH_USER: admin
+      N8N_BASIC_AUTH_PASSWORD: n8n_admin_password
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      
+      # Webhook Configuration
+      WEBHOOK_URL: http://localhost:5678
+      
+      # Performance Optimization
+      N8N_LOG_LEVEL: info
+      EXECUTIONS_DATA_PRUNE: true
+      EXECUTIONS_DATA_MAX_AGE: 168  # 7 дней
+      EXECUTIONS_DATA_SAVE_ON_ERROR: all
+      EXECUTIONS_DATA_SAVE_ON_SUCCESS: all
+      
+      # Integration with Cloud Services
+      VERCEL_API_TOKEN: k3dQlIJIgMGed8jCNtjWdzEu
+      SUPABASE_URL: https://nacpsvszdyabyuednbsg.supabase.co
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hY3BzdnN6ZHlhYnl1ZWRuYnNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ1MjAwNDMsImV4cCI6MjA3MDA5NjA0M30.-lo38TwmxnsoEzLSywM7Sz5kzy2vEfJU1Jc86AphvLo
+      
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/home/node/.n8n/workflows
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Redis for Caching (Optional)
+  redis:
+    image: redis:7-alpine
+    container_name: n8n-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: n8n-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - n8n
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  n8n_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: n8n-network
+    driver: bridge
